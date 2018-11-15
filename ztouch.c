@@ -16,7 +16,7 @@ int main(int argc, char **argv) {
     char disk_name[MAX_PATH_LENGTH];
     oufs_get_environment(cwd, disk_name);
 
-    char mode = 'a';
+    char mode[2] = "a";
 
     // Check arguments
     if (argc == 2) {

@@ -204,7 +204,7 @@ int oufs_find_file(char *cwd, char *path, INODE_REFERENCE *parent, INODE_REFEREN
 
     vdisk_read_block(ROOT_DIRECTORY_BLOCK, &currentBlock);
     *parent = 0;
-    *child = 0;
+    *child = UNALLOCATED_INODE;
 
     if(strncmp(path, "/", 1) != 0) //If the path is not absolute, navigate to CWD.
     {
