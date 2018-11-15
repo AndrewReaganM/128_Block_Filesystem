@@ -349,7 +349,7 @@ int oufs_list(char *cwd, char *path)
     for(int i=0; i < listInc; ++i) {
         for(int j=0; j < DIRECTORY_ENTRIES_PER_BLOCK; j++) {
             if(strncmp(childBLOCK.directory.entry[j].name, itemList[i], FILE_NAME_SIZE) == 0) {
-                oufs_read_inode_by_reference(childBLOCK.directory.entry[i].inode_reference, &childINODE);
+                oufs_read_inode_by_reference(childBLOCK.directory.entry[j].inode_reference, &childINODE);
 
                 if(childINODE.type == IT_FILE) {
                     printf("%s\n", itemList[i]);
