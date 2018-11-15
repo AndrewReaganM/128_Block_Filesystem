@@ -303,6 +303,7 @@ int oufs_list(char *cwd, char *path)
         return EXIT_FAILURE;
     }
 
+    //Read parent inode and block.
     oufs_read_inode_by_reference(parent, &parentINODE);
     vdisk_read_block(parentINODE.data[0], &parentBLOCK);
 
@@ -324,30 +325,41 @@ int oufs_list(char *cwd, char *path)
 
     }
     if(childStatus == 0) //Fail if not in specified parent.
-    {
+        {
         fprintf(stderr, "Specified directory (%s) not found in parent. Exiting...\n", local_name);
         return EXIT_FAILURE;
     }
     vdisk_read_block(childINODE.data[0], &childBLOCK);
 
     char* itemList[DIRECTORY_ENTRIES_PER_BLOCK];
+    char* typeList[DIRECTORY_ENTRIES_PER_BLOCK];
     size_t listInc = 0;
+    INODE checkingINODE;
 
-    for(int i=0; i < DIRECTORY_ENTRIES_PER_BLOCK; i++)
-    {
-        if(strnlen(childBLOCK.directory.entry[i].name, FILE_NAME_SIZE) > 0)
-        {
+    for(int i=0; i < DIRECTORY_ENTRIES_PER_BLOCK; i++) {
+        if(strnlen(childBLOCK.directory.entry[i].name, FILE_NAME_SIZE) > 0) {
             itemList[listInc] = childBLOCK.directory.entry[i].name;
+
             listInc++;
         }
     }
 
     qsort(itemList, listInc, sizeof(char*), cmpstringp);
 
-    for(int i=0; i < listInc; ++i)
-    {
-        //TODO: Support for files (no /)
-        printf("%s/\n", itemList[i]);
+    for(int i=0; i < listInc; ++i) {
+        for(int j=0; j < DIRECTORY_ENTRIES_PER_BLOCK; j++) {
+            if(strncmp(childBLOCK.directory.entry[j].name, itemList[i], FILE_NAME_SIZE) == 0) {
+                oufs_read_inode_by_reference(childBLOCK.directory.entry[i].inode_reference, &childINODE);
+
+                if(childINODE.type == IT_FILE) {
+                    printf("%s\n", itemList[i]);
+                }
+                else {
+                    printf("%s/\n", itemList[i]);
+                }
+                break;
+            }
+        }
     }
     return EXIT_SUCCESS;
 }
@@ -524,76 +536,7 @@ OUFILE *oufs_fopen(char *cwd, char *path, char *mode)
             fp->offset = 0;
             return(fp);
         case 'w' : //File writing case
-            if(parentINODE_REF == UNALLOCATED_INODE)
-            {
-                fprintf(stderr, "oufs_fopen: parent does not exist. Exiting...\n");
-                return NULL;
-            }
-            if(childINODE_REF == UNALLOCATED_INODE)
-            {
-                //Find an empty place in the block.
-                oufs_write_inode_by_reference(parentINODE_REF, &parentINODE);
-                BLOCK parentBLOCK;
-                vdisk_read_block(parentINODE.data[0],&parentBLOCK);
-                int availableEntry = -1;
-                for(int i=0; i < INODES_PER_BLOCK; i++) {
-                    if(parentBLOCK.directory.entry[i].inode_reference == UNALLOCATED_INODE) {
-                        availableEntry = i;
-                        break;
-                    }
-                }
-                if(availableEntry == -1)
-                {
-                    fprintf(stderr, "oufs_fopen: parent directory is full. Exiting...\n");
-                    return NULL;
-                }
-
-                //Allocate a new inode for the file.
-                BLOCK masterBLOCK;
-                vdisk_read_block(MASTER_BLOCK_REFERENCE, &masterBLOCK);
-                int newINODE_REFERENCE = oufs_find_open_bit(masterBLOCK.master.inode_allocated_flag);
-                if(newINODE_REFERENCE < 1) //Error if no available inodes.
-                {
-                    fprintf(stderr, "oufs_fopen: no available inodes. Exiting...\n");
-                    return NULL;
-                }
-                childINODE_REF = (INODE_REFERENCE) newINODE_REFERENCE;
-                SET_BIT(masterBLOCK.master.inode_allocated_flag, childINODE_REF); //Set the bit.
-                INODE childINODE;
-                childINODE.size = 0;
-                for(int i = 0; i < INODES_PER_BLOCK; i++)
-                {
-                    childINODE.data[i] = UNALLOCATED_BLOCK; //Set all blocks to unallocated.
-                }
-                childINODE.n_references = 1;
-                childINODE.type = IT_FILE;
-
-                strncpy(parentBLOCK.directory.entry[availableEntry].name, local_name, FILE_NAME_SIZE-1);
-                parentBLOCK.directory.entry[availableEntry].name[FILE_NAME_SIZE-1] = 0; //Ensure null termination.
-                parentBLOCK.directory.entry[availableEntry].inode_reference = childINODE_REF;
-                vdisk_write_block(parentINODE_REF, &parentBLOCK);
-                vdisk_write_block(MASTER_BLOCK_REFERENCE, &masterBLOCK);
-                oufs_write_inode_by_reference(childINODE_REF, &childINODE);
-            }
-            else
-            {
-                oufs_read_inode_by_reference(childINODE_REF, &childINODE);
-                for(int i=0; i < BLOCKS_PER_INODE; i++)
-                {
-                    childINODE.data[i] = UNALLOCATED_BLOCK;
-                }
-                childINODE.size = 0;
-                oufs_write_inode_by_reference(childINODE_REF, &childINODE);
-
-            }
-
-            //OUFILE *fp declared above.
-            fp->inode_reference = childINODE_REF;
-            fp->mode = *mode;
-            fp->offset = 0;
-
-
-            return(fp);
+            break;
         case 'a' : //File appending case.
             if(parentINODE_REF == UNALLOCATED_INODE)
             {
@@ -630,9 +573,8 @@ OUFILE *oufs_fopen(char *cwd, char *path, char *mode)
                 }
                 childINODE_REF = (INODE_REFERENCE) newINODE_REFERENCE;
                 SET_BIT(masterBLOCK.master.inode_allocated_flag, childINODE_REF); //Set the bit.
-                INODE childINODE;
                 childINODE.size = 0;
-                for(int i = 0; i < INODES_PER_BLOCK; i++)
+                for(int i = 0; i < BLOCKS_PER_INODE; i++)
                 {
                     childINODE.data[i] = UNALLOCATED_BLOCK; //Set all blocks to unallocated.
                 }
