@@ -581,11 +581,14 @@ OUFILE *oufs_fopen(char *cwd, char *path, char *mode)
                 childINODE.n_references = 1;
                 childINODE.type = IT_FILE;
 
+                parentINODE.size++;
+
                 strncpy(parentBLOCK.directory.entry[availableEntry].name, local_name, FILE_NAME_SIZE-1);
                 parentBLOCK.directory.entry[availableEntry].name[FILE_NAME_SIZE-1] = 0; //Ensure null termination.
                 parentBLOCK.directory.entry[availableEntry].inode_reference = childINODE_REF;
                 vdisk_write_block(parentINODE.data[0], &parentBLOCK);
                 vdisk_write_block(MASTER_BLOCK_REFERENCE, &masterBLOCK);
+                oufs_write_inode_by_reference(parentINODE_REF, &parentINODE);
                 oufs_write_inode_by_reference(childINODE_REF, &childINODE);
             }
             else
