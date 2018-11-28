@@ -58,7 +58,6 @@ char **oufs_path_parse(char *input, int *numberOfTokens);
 
 int cmpstringp(const void *p1, const void *p2);
 
-// PROJECT 4 ONLY
 OUFILE *oufs_fopen(char *cwd, char *path, char *mode);
 
 void oufs_fclose(OUFILE *fp);

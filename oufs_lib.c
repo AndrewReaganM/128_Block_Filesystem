@@ -269,14 +269,13 @@ int oufs_find_file(char *cwd, char *path, INODE_REFERENCE *parent, INODE_REFEREN
         }
     }
 
+    strncpy(local_name, tokenizedPath[pathNumTok-1], FILE_NAME_SIZE-1);
     for(int i=0; i < DIRECTORY_ENTRIES_PER_BLOCK; ++i) {
         if (strncmp(currentBlock.directory.entry[i].name, local_name, FILE_NAME_SIZE) == 0) {
             (*child) = currentBlock.directory.entry[i].inode_reference;
             break;
         }
     }
-    strncpy(local_name, tokenizedPath[pathNumTok-1], FILE_NAME_SIZE-1);
-
 
     return EXIT_SUCCESS;
 }
@@ -536,8 +535,6 @@ OUFILE *oufs_fopen(char *cwd, char *path, char *mode)
             fp->offset = 0;
             return(fp);
         case 'w' : //File writing case
-            break;
-        case 'a' : //File appending case.
             if(parentINODE_REF == UNALLOCATED_INODE)
             {
                 fprintf(stderr, "oufs_fopen: parent does not exist. Exiting...\n");
@@ -550,7 +547,71 @@ OUFILE *oufs_fopen(char *cwd, char *path, char *mode)
                 BLOCK parentBLOCK;
                 vdisk_read_block(parentINODE.data[0],&parentBLOCK);
                 int availableEntry = -1;
-                for(int i=0; i < INODES_PER_BLOCK; i++) {
+                for(int i=0; i < BLOCKS_PER_INODE; i++) {
+                    if(parentBLOCK.directory.entry[i].inode_reference == UNALLOCATED_INODE) {
+                        availableEntry = i;
+                        break;
+                    }
+                }
+                if(availableEntry < 0)
+                {
+                    fprintf(stderr, "oufs_fopen: parent directory is full. Exiting...\n");
+                    return NULL;
+                }
+
+                //Allocate a new inode for the file.
+                BLOCK masterBLOCK;
+                vdisk_read_block(MASTER_BLOCK_REFERENCE, &masterBLOCK);
+                int newINODE_REFERENCE = oufs_find_open_bit(masterBLOCK.master.inode_allocated_flag);
+                if(newINODE_REFERENCE < 1) //Error if no available inodes.
+                {
+                    fprintf(stderr, "oufs_fopen: no available inodes. Exiting...\n");
+                    return NULL;
+                }
+                childINODE_REF = (INODE_REFERENCE) newINODE_REFERENCE;
+                SET_BIT(masterBLOCK.master.inode_allocated_flag, childINODE_REF); //Set the bit.
+                childINODE.size = 0;
+                for(int i = 0; i < BLOCKS_PER_INODE; i++)
+                {
+                    childINODE.data[i] = UNALLOCATED_BLOCK; //Set all blocks to unallocated.
+                }
+                childINODE.n_references = 1;
+                childINODE.type = IT_FILE;
+
+                parentINODE.size++;
+
+                strncpy(parentBLOCK.directory.entry[availableEntry].name, local_name, FILE_NAME_SIZE-1);
+                parentBLOCK.directory.entry[availableEntry].name[FILE_NAME_SIZE-1] = 0; //Ensure null termination.
+                parentBLOCK.directory.entry[availableEntry].inode_reference = childINODE_REF;
+                vdisk_write_block(parentINODE.data[0], &parentBLOCK);
+                vdisk_write_block(MASTER_BLOCK_REFERENCE, &masterBLOCK);
+                oufs_write_inode_by_reference(parentINODE_REF, &parentINODE);
+                oufs_write_inode_by_reference(childINODE_REF, &childINODE);
+            }
+            else
+            {
+                oufs_read_inode_by_reference(childINODE_REF, &childINODE);
+            }
+
+            //OUFILE *fp declared above.
+            fp->inode_reference = childINODE_REF;
+            fp->mode = *mode;
+            fp->offset = 0;
+            return(fp);
+        case 'a' : //File appending case.
+            if(parentINODE_REF == UNALLOCATED_INODE)
+            {
+                fprintf(stderr, "oufs_fopen: parent does not exist. Exiting...\n");
+                return NULL;
+            }
+            if(childINODE_REF == UNALLOCATED_INODE)
+            {
+                //Find an empty place in the block.
+                oufs_read_inode_by_reference(parentINODE_REF, &parentINODE);
+                BLOCK parentBLOCK;
+                vdisk_read_block(parentINODE.data[0], &parentBLOCK);
+                int availableEntry = -1;
+                for(int i=0; i < BLOCKS_PER_INODE; i++) {
                     if(parentBLOCK.directory.entry[i].inode_reference == UNALLOCATED_INODE) {
                         availableEntry = i;
                         break;
@@ -619,4 +680,145 @@ void oufs_inode_reset(INODE *inode) {
  */
 void oufs_clear_dblock(BLOCK *block) {
     memset(block, 0, 256);
+}
+
+int oufs_fwrite(OUFILE *fp, unsigned char *buf, int len)
+{
+    INODE inode;
+    oufs_read_inode_by_reference((*fp).inode_reference, &inode);
+
+    int bufLocation = 0;
+    int offsetInBlock;
+    int currentBlock;
+    int blkInMem = -1;
+    BLOCK blockMem, masterBlock;
+    vdisk_read_block(MASTER_BLOCK_REFERENCE, &masterBlock);
+
+    switch((*fp).mode){
+        case 'w' :
+            if((*fp).offset > 0)
+            {
+                for(int i=0; i< BLOCKS_PER_INODE; i++)
+                {
+                    if(inode.data[i] == UNALLOCATED_BLOCK) //Break loop if the block reference is already unallocated.
+                        break;
+
+                    RESET_BIT(masterBlock.master.block_allocated_flag, inode.data[i]); //Free the block
+                    inode.data[i] = UNALLOCATED_BLOCK; //Set data to unallocated.
+                }
+            }
+            inode.size = 0;
+
+            while(bufLocation < len-1) //While there is still data to write.
+            {
+                offsetInBlock = (*fp).offset % 256; //Calculate the current position in block.
+                currentBlock = ((*fp).offset - offsetInBlock) / 256; //Calculate the current block.
+
+                if(blkInMem != currentBlock) //Read in current block if necessary.
+                {
+                    if(inode.data[currentBlock] == UNALLOCATED_BLOCK) //Setup new block
+                    {
+                        int allocNewBlock;
+                        if((allocNewBlock = oufs_find_open_bit(masterBlock.master.block_allocated_flag)) < 0)
+                        {
+                            fprintf(stderr, "No more blocks available.\n");
+                            return EXIT_FAILURE;
+                        }
+                        SET_BIT(masterBlock.master.block_allocated_flag, allocNewBlock);
+                        inode.data[currentBlock] = (BLOCK_REFERENCE) allocNewBlock;
+                    }
+                    vdisk_read_block(inode.data[currentBlock], &blockMem);
+                    blkInMem = currentBlock;
+                }
+
+                blockMem.data.data[offsetInBlock] = buf[bufLocation];
+
+                inode.size++;
+                (*fp).offset++;
+                bufLocation++;
+
+                if((offsetInBlock >= (BLOCK_SIZE - 1)) || (bufLocation >= (len-1))) //If block full, or buf empty.
+                {
+                    vdisk_write_block(inode.data[blkInMem], &blockMem); //Write the block.
+                }
+            }
+
+            vdisk_write_block(MASTER_BLOCK_REFERENCE, &masterBlock); //Write the master block.
+            oufs_write_inode_by_reference((*fp).inode_reference, &inode); //Write the inode.
+            return EXIT_SUCCESS;
+        case 'a' :
+            //Write the characters to the file.
+            while(bufLocation < len-1) //While there is still data to write.
+            {
+                offsetInBlock = (*fp).offset % 256; //Calculate the current position in block.
+                currentBlock = ((*fp).offset - offsetInBlock) / 256; //Calculate the current block.
+
+                if(blkInMem != currentBlock) //Read in current block if necessary.
+                {
+                    if(inode.data[currentBlock] == UNALLOCATED_BLOCK) //Setup new block
+                    {
+                        int allocNewBlock;
+                        if((allocNewBlock = oufs_find_open_bit(masterBlock.master.block_allocated_flag)) < 0)
+                        {
+                            fprintf(stderr, "No more blocks available.\n");
+                            return EXIT_FAILURE;
+                        }
+                        SET_BIT(masterBlock.master.block_allocated_flag, allocNewBlock);
+                        inode.data[currentBlock] = (BLOCK_REFERENCE) allocNewBlock;
+                    }
+                    vdisk_read_block(inode.data[currentBlock], &blockMem);
+                    blkInMem = currentBlock;
+                }
+
+                blockMem.data.data[offsetInBlock] = buf[bufLocation];
+
+                inode.size++;
+                (*fp).offset++;
+                bufLocation++;
+
+                if((offsetInBlock >= (BLOCK_SIZE - 1)) || (bufLocation >= (len-1))) //If block full, or buf empty.
+                {
+                    vdisk_write_block(inode.data[blkInMem], &blockMem); //Write the block.
+                }
+            }
+
+            vdisk_write_block(MASTER_BLOCK_REFERENCE, &masterBlock); //Write the master block.
+            oufs_write_inode_by_reference((*fp).inode_reference, &inode); //Write the inode.
+            return EXIT_SUCCESS;
+        case 'r' :
+            fprintf(stderr, "File in read only mode - cannot write.\n");
+            return EXIT_FAILURE;
+        default:
+            return EXIT_FAILURE;
+    }
+}
+
+int oufs_fread(OUFILE *fp, unsigned char *buf, int len) {
+
+    int bufLocation = 0;
+    int offsetInBlock;
+    int currentBlock;
+    int blkInMem = -1;
+    BLOCK blockMem, masterBlock;
+    INODE fileINODE;
+    oufs_read_inode_by_reference((*fp).inode_reference, &fileINODE);
+
+    while (bufLocation < fileINODE.size) //While there is still data to write.
+    {
+        offsetInBlock = bufLocation % 256; //Calculate the current position in block.
+        currentBlock = (bufLocation - offsetInBlock) / 256; //Calculate the current block.
+
+        if(blkInMem != currentBlock) //Read in current block if necessary.
+        {
+
+            vdisk_read_block(fileINODE.data[currentBlock], &blockMem);
+            blkInMem = currentBlock;
+        }
+
+        buf[bufLocation] = blockMem.data.data[offsetInBlock];
+
+        bufLocation++;
+
+    }
+    
 }
