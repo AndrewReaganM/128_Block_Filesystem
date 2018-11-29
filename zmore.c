@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
         }
         fprintf(stderr, "%i\n", getpid());
         oufs_fread(fileDesc, inputBuffer, &length);
-        inputBuffer[length] = 0;
+        inputBuffer[length-1] = 0;
 
         printf("%s", inputBuffer);
 
