@@ -32,10 +32,9 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Unable to open file.\n");
             return EXIT_FAILURE;
         }
-        //fprintf(stderr, "%i\n", getpid());
         oufs_fread(fileDesc, inputBuffer, &length);
 
-        printf("%s", inputBuffer);
+        write(1, inputBuffer, length);
 
         // Clean up
         vdisk_disk_close();
