@@ -656,6 +656,12 @@ OUFILE *oufs_fopen(char *cwd, char *path, char *mode)
             else
             {
                 oufs_read_inode_by_reference(childINODE_REF, &childINODE);
+                if(childINODE.size >= (BLOCK_SIZE*BLOCKS_PER_INODE))
+                {
+                    fprintf(stderr, "File is already full. Exiting...\n");
+                    return(NULL);
+                }
+
             }
 
             //OUFILE *fp declared above.

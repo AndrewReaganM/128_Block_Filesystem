@@ -39,9 +39,9 @@ int main(int argc, char **argv) {
             if(i >= (BLOCK_SIZE*BLOCKS_PER_INODE))
                 break;
         }
-        
+
         oufs_fclose(fileDesc);
-        oufs_fwrite(fileDesc, &inputBuffer, i+1);
+        oufs_fwrite(fileDesc, &inputBuffer, i);
 
         // Clean up
         vdisk_disk_close();

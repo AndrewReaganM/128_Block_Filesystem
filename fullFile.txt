@@ -1,0 +1,112 @@
+#include "oufs_lib.h"
+
+#define debug 0
+/**
+ * Function that formats the virtual disk per the specification given in oufs.h
+ *
+ * @param virtual_disk_name the name of the virtual disk.
+ * @return the success of the program, either EXIT_FAILURE or EXIT SUCCESS
+ */
+int oufs_format_disk(char *virtual_disk_name) {
+
+    if (vdisk_disk_open(virtual_disk_name) != 0) {
+        fprintf(stderr, "oufs_format_disk: Error opening disk or another disk already opened.\n");
+        //return(EXIT_FAILURE);
+    }
+    /************************** Write zeroes to entire disk *****************************/
+    DATA_BLOCK zero_block;
+    memset(zero_block.data, 0, 256);
+    for (int j = 0; j < 128; j++) {
+        vdisk_write_block(j, &zero_block);
+    }
+
+    /*********************************** Block Setup ***********************************/
+
+    //Set up master block
+    BLOCK mblock;
+    SET_BIT(mblock.master.block_allocated_flag, MASTER_BLOCK_REFERENCE);
+
+    //Mark inode block???????
+    SET_BIT(mblock.master.inode_allocated_flag, MASTER_BLOCK_REFERENCE);
+
+    //Set up inode blocks
+    BLOCK iblock;
+    iblock.inodes.inode[0].type = IT_NONE;
+
+    for (int i = 0; i < INODES_PER_BLOCK; i++) {
+        iblock.inodes.inode[i].type = IT_NONE;
+        iblock.inodes.inode[i].n_references = 0;
+        iblock.inodes.inode[i].size = 0;
+        for (int j = 0; j < BLOCKS_PER_INODE; j++) {
+            iblock.inodes.inode[i].data[j] = UNALLOCATED_BLOCK;
+        }
+    }
+
+    // Write unallocated inode blocks and set the bits in the master block to be written later.
+    for (int i = 1; i <= N_INODE_BLOCKS; i++) {
+        vdisk_write_block(i, &iblock);
+        SET_BIT(mblock.master.block_allocated_flag, i);
+    }
+
+    iblock.inodes.inode[0].type = IT_DIRECTORY;
+    iblock.inodes.inode[0].n_references = 1;
+    iblock.inodes.inode[0].size = 2;
+    iblock.inodes.inode[0].data[0] = 9;
+
+    vdisk_write_block(1, &iblock);
+    //Create blank directory block.
+    BLOCK dirBlock;
+
+    //Set both . and .. to the root itself.
+    strncpy(dirBlock.directory.entry[0].name, ".", FILE_NAME_SIZE-1);
+    dirBlock.directory.entry[0].inode_reference = 0;
+    strncpy(dirBlock.directory.entry[1].name, "..", FILE_NAME_SIZE-1);
+    dirBlock.directory.entry[1].inode_reference = 0;
+
+    //Initialize the rest of the directory entries as unallocated and clear names.
+    for(int i=2; i < DIRECTORY_ENTRIES_PER_BLOCK; i++)
+    {
+        strncpy(dirBlock.directory.entry[i].name, "", FILE_NAME_SIZE-1);
+        dirBlock.directory.entry[i].inode_reference = UNALLOCATED_INODE;
+    }
+
+    //Write root directory block.
+    vdisk_write_block(N_INODE_BLOCKS+1, &dirBlock);
+    SET_BIT(mblock.master.block_allocated_flag, N_INODE_BLOCKS+1);
+
+    //Write Master Block
+    vdisk_write_block(MASTER_BLOCK_REFERENCE, &mblock);
+
+    if(debug)
+        fprintf(stderr, "Disk successfully formatted.\n");
+
+    vdisk_disk_close();
+
+    return EXIT_SUCCESS;
+}
+/**
+ * Function to make new directories in the OUFS file system.
+ * @param cwd the current working directory of the open disk.
+ * @param path the user given path of the directory to be made.
+ * @return the success of the program, either EXIT_FAILURE or EXIT SUCCESS
+ */
+int oufs_mkdir(char *cwd, char *path) {
+    INODE_REFERENCE child, parent;
+    char local_name[FILE_NAME_SIZE];
+
+    //Find where the directory should be located.
+    if(oufs_find_file(cwd, path, &parent, &child, &local_name) == EXIT_FAILURE)
+    {
+        fprintf(stderr, "Unable to traverse CWD or provided path.\n");
+        return EXIT_FAILURE;
+    }
+
+    INODE parentINODE;
+    oufs_read_inode_by_reference(parent, &parentINODE); //Read parent inode
+    if(parentINODE.size >= DIRECTORY_ENTRIES_PER_BLOCK)
+    {
+        fprintf(stderr, "The specified parent is already full.\n");
+        return EXIT_FAILURE;
+    }
+
+    BLOCK parentBlock;123
