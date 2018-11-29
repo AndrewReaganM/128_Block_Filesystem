@@ -37,6 +37,7 @@ int main(int argc, char **argv) {
         write(1, inputBuffer, length);
 
         // Clean up
+        oufs_fclose(fileDesc);
         vdisk_disk_close();
         return EXIT_SUCCESS;
 

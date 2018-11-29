@@ -999,3 +999,8 @@ int oufs_link(char *cwd, char *path_src, char *path_dst)
     oufs_write_inode_by_reference(srcChildINODE_REF, &srcChildINODE);
     return EXIT_SUCCESS;
 }
+
+void oufs_fclose(OUFILE *fp)
+{
+    free(fp);
+}

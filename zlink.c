@@ -28,6 +28,7 @@ int main(int argc, char **argv) {
         oufs_link(cwd, argv[1], argv[2]);
 
         // Clean up
+        oufs_fclose(fileDesc);
         vdisk_disk_close();
 
     } else {
