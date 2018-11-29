@@ -14,6 +14,8 @@ add_executable(ztouch ztouch.c oufs_lib.h oufs_lib_support.c oufs.h vdisk.c oufs
 add_executable(zcreate zcreate.c oufs_lib.h oufs_lib_support.c oufs.h vdisk.c oufs_lib.c zformat.h)
 add_executable(zappend zappend.c oufs_lib.h oufs_lib_support.c oufs.h vdisk.c oufs_lib.c zformat.h)
 add_executable(zmore zmore.c oufs_lib.h oufs_lib_support.c oufs.h vdisk.c oufs_lib.c zformat.h)
+add_executable(zremove zremove.c oufs_lib.h oufs_lib_support.c oufs.h vdisk.c oufs_lib.c zformat.h)
+add_executable(zlink zlink.c oufs_lib.h oufs_lib_support.c oufs.h vdisk.c oufs_lib.c zformat.h)
 
 
 

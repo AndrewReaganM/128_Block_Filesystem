@@ -265,6 +265,7 @@ int oufs_find_file(char *cwd, char *path, INODE_REFERENCE *parent, INODE_REFEREN
         }
         if(status == 0) {
             fprintf(stderr, "Unable to locate directory or file '%s'.\n", tokenizedPath[i]);
+            *parent = UNALLOCATED_INODE;
             return EXIT_FAILURE;
         }
     }
@@ -681,7 +682,13 @@ void oufs_inode_reset(INODE *inode) {
 void oufs_clear_dblock(BLOCK *block) {
     memset(block, 0, 256);
 }
-
+/**
+ * Writes to or appends given data to a file.
+ * @param fp the OUFILE object representing the file opened previously.
+ * @param buf buffer to be written to the file.
+ * @param len the length of the buffer.
+ * @return
+ */
 int oufs_fwrite(OUFILE *fp, unsigned char *buf, int len)
 {
     INODE inode;
@@ -709,7 +716,7 @@ int oufs_fwrite(OUFILE *fp, unsigned char *buf, int len)
             }
             inode.size = 0;
 
-            while(bufLocation < len-1) //While there is still data to write.
+            while((bufLocation < len-1) || (bufLocation < (BLOCK_SIZE*BLOCKS_PER_INODE))) //While there is still data to write.
             {
                 offsetInBlock = (*fp).offset % 256; //Calculate the current position in block.
                 currentBlock = ((*fp).offset - offsetInBlock) / 256; //Calculate the current block.
@@ -737,7 +744,8 @@ int oufs_fwrite(OUFILE *fp, unsigned char *buf, int len)
                 (*fp).offset++;
                 bufLocation++;
 
-                if((offsetInBlock >= (BLOCK_SIZE - 1)) || (bufLocation >= (len-1))) //If block full, or buf empty.
+                //If block full, buf empty, or file full.
+                if((offsetInBlock >= (BLOCK_SIZE - 1)) || (bufLocation >= (len-1)) || (bufLocation >= (BLOCK_SIZE*BLOCKS_PER_INODE)))
                 {
                     vdisk_write_block(inode.data[blkInMem], &blockMem); //Write the block.
                 }
@@ -748,7 +756,7 @@ int oufs_fwrite(OUFILE *fp, unsigned char *buf, int len)
             return EXIT_SUCCESS;
         case 'a' :
             //Write the characters to the file.
-            while(bufLocation < len-1) //While there is still data to write.
+            while((bufLocation < len-1) || (bufLocation < (BLOCK_SIZE*BLOCKS_PER_INODE))) //While there is still data to write.
             {
                 offsetInBlock = (*fp).offset % 256; //Calculate the current position in block.
                 currentBlock = ((*fp).offset - offsetInBlock) / 256; //Calculate the current block.
@@ -776,7 +784,8 @@ int oufs_fwrite(OUFILE *fp, unsigned char *buf, int len)
                 (*fp).offset++;
                 bufLocation++;
 
-                if((offsetInBlock >= (BLOCK_SIZE - 1)) || (bufLocation >= (len-1))) //If block full, or buf empty.
+                //If block full, buf empty, or file full.
+                if((offsetInBlock >= (BLOCK_SIZE - 1)) || (bufLocation >= (len-1)) || (bufLocation >= (BLOCK_SIZE*BLOCKS_PER_INODE)))
                 {
                     vdisk_write_block(inode.data[blkInMem], &blockMem); //Write the block.
                 }
@@ -792,15 +801,28 @@ int oufs_fwrite(OUFILE *fp, unsigned char *buf, int len)
             return EXIT_FAILURE;
     }
 }
-
-int oufs_fread(OUFILE *fp, unsigned char *buf, int len) {
+/**
+ * This function reads a file in the OU File System and saves it to a provided buffer.
+ * @param fp the OUFILE object representing the file opened previously.
+ * @param buf the buffer for the file to be read into.
+ * @param len the length of the file to be saved.
+ * @return system defined success value.
+ */
+int oufs_fread(OUFILE *fp, unsigned char *buf, int *len) {
 
     int bufLocation = 0;
     int offsetInBlock;
     int currentBlock;
     int blkInMem = -1;
-    BLOCK blockMem, masterBlock;
+    BLOCK blockMem;
     INODE fileINODE;
+
+    if((*fp).mode != 'r')
+    {
+        fprintf(stderr, "File cannot be read - opened in '%c' mode.\n", (*fp).mode);
+        return EXIT_FAILURE;
+    }
+
     oufs_read_inode_by_reference((*fp).inode_reference, &fileINODE);
 
     while (bufLocation < fileINODE.size) //While there is still data to write.
@@ -820,5 +842,153 @@ int oufs_fread(OUFILE *fp, unsigned char *buf, int len) {
         bufLocation++;
 
     }
-    
+    *len = bufLocation;
+    return EXIT_SUCCESS;
+}
+/**
+ * This function removes a file reference or file from the OUFS file system.
+ *
+ * Note: the file data is still on the disk until it is overwritten.
+ * @param cwd the current working directory of the file system.
+ * @param path the user provided path.
+ * @return system defined success value.
+ */
+int oufs_remove(char *cwd, char *path)
+{
+    char local_name[FILE_NAME_SIZE];
+    INODE_REFERENCE parentINODE_REF, childINODE_REF;
+    INODE parentINODE, childINODE;
+    BLOCK parentBLOCK;
+    oufs_find_file(cwd, path, &parentINODE_REF, &childINODE_REF, &local_name);
+
+    //Check if child exists
+    if(childINODE_REF == UNALLOCATED_INODE)
+    {
+        fprintf(stderr, "File specified does not exist.\n");
+        return EXIT_FAILURE;
+    }
+
+    //Read the inodes.
+    oufs_read_inode_by_reference(parentINODE_REF, &parentINODE);
+    oufs_read_inode_by_reference(childINODE_REF, &childINODE);
+
+    //Read the parent block.
+    vdisk_read_block(parentINODE.data[0], &parentBLOCK);
+
+    //Decrement the child inode number of references.
+    childINODE.n_references--;
+
+    //Remove the file entry from parent.
+    for(int i=0; i< BLOCKS_PER_INODE; i++)
+    {
+        if(parentBLOCK.directory.entry[i].inode_reference == childINODE_REF)
+        {
+            parentBLOCK.directory.entry[i].inode_reference = UNALLOCATED_INODE; //Set entry reference to unalloc.
+            memset(parentBLOCK.directory.entry[i].name, 0, FILE_NAME_SIZE); //Set entry name to nulls.
+            break;
+        }
+
+    }
+    parentINODE.size--;
+    oufs_write_inode_by_reference(parentINODE_REF, &parentINODE);
+    vdisk_write_block(parentINODE.data[0], &parentBLOCK);
+
+    //Check if file is ready for deletion
+    if(childINODE.n_references < 1)
+    {
+        BLOCK masterBLOCK;
+        vdisk_read_block(MASTER_BLOCK_REFERENCE, &masterBLOCK);
+        //Remove all references
+        for(int i=0; i < BLOCKS_PER_INODE; i++)
+        {
+            if(childINODE.data[i] == UNALLOCATED_BLOCK) {
+                break;
+            }
+            RESET_BIT(masterBLOCK.master.block_allocated_flag, childINODE.data[i]); //Deallocate block
+            childINODE.data[i] = UNALLOCATED_BLOCK;
+        }
+        childINODE.size = 0;
+        childINODE.type = IT_NONE;
+        oufs_write_inode_by_reference(childINODE_REF, &childINODE); //Write clean inode to inode block.
+
+        RESET_BIT(masterBLOCK.master.inode_allocated_flag, childINODE_REF); //Deallocate inode.
+
+        vdisk_write_block(MASTER_BLOCK_REFERENCE, &masterBLOCK); //Write master block.
+    }
+    return EXIT_SUCCESS;
+}
+
+int oufs_link(char *cwd, char *path_src, char *path_dst)
+{
+    INODE_REFERENCE srcChildINODE_REF, srcParentINODE_REF, dstChildINODE_REF, dstParentINODE_REF;
+    INODE srcChildINODE, dstParentINODE;
+    char srcLocalName[FILE_NAME_SIZE];
+    char dstLocalName[FILE_NAME_SIZE];
+    BLOCK dstParentBLOCK;
+
+    //Discover the parent and destination locations
+    oufs_find_file(cwd, path_src, &srcParentINODE_REF, &srcChildINODE_REF, srcLocalName);
+    oufs_find_file(cwd, path_dst, &dstParentINODE_REF, &dstChildINODE_REF, dstLocalName);
+
+    //Ensure destination does not exist.
+    if(dstChildINODE_REF != UNALLOCATED_INODE)
+    {
+        fprintf(stderr, "Destination file already exists.\n");
+        return EXIT_FAILURE;
+    }
+
+    //Ensure source child does exist.
+    if(srcChildINODE_REF == UNALLOCATED_INODE)
+    {
+        fprintf(stderr, "Source file does not exist.\n");
+        return EXIT_FAILURE;
+    }
+
+    //Ensure source child is a file.
+    oufs_read_inode_by_reference(srcChildINODE_REF, &srcChildINODE);
+    if(srcChildINODE.type != IT_FILE)
+    {
+        fprintf(stderr, "Source is not a file.\n");
+        return EXIT_FAILURE;
+    }
+
+    //Ensure the destination parent exists.
+    if(dstParentINODE_REF == UNALLOCATED_INODE)
+    {
+        fprintf(stderr, "Source parent does not exist.\n");
+        return EXIT_FAILURE;
+    }
+    //Check if the destination parent has room.
+    oufs_read_inode_by_reference(dstParentINODE_REF, &dstParentINODE);
+    if(dstParentINODE.size >= INODES_PER_BLOCK)
+    {
+        fprintf(stderr, "Source parent is full.\n");
+        return EXIT_FAILURE;
+    }
+
+    //Read dest parent inode reference and block
+    oufs_read_inode_by_reference(dstParentINODE_REF, &dstParentINODE);
+    vdisk_read_block(dstParentINODE.data[0], &dstParentBLOCK);
+
+    //Find empty entry in destination parent directory block.
+    for(int i=0; i < DIRECTORY_ENTRIES_PER_BLOCK; i++)
+    {
+        if(dstParentBLOCK.directory.entry[i].inode_reference == UNALLOCATED_INODE)
+        {
+            dstParentBLOCK.directory.entry[i].inode_reference = srcChildINODE_REF; //Set the available entry to src
+            strncpy(dstParentBLOCK.directory.entry[i].name, dstLocalName, FILE_NAME_SIZE-1); //Copy dst name.
+            dstParentBLOCK.directory.entry[i].name[FILE_NAME_SIZE-1] = 0; //Null terminate if full
+            dstParentINODE.size++; //Increment num directories in parent inode.
+            break;
+        }
+    }
+
+    //Increment number of references on src child inode.
+    srcChildINODE.n_references++;
+
+    //Write changes to disk.
+    vdisk_write_block(dstParentINODE.data[0], &dstParentBLOCK);
+    oufs_write_inode_by_reference(dstParentINODE_REF, &dstParentINODE);
+    oufs_write_inode_by_reference(srcChildINODE_REF, &srcChildINODE);
+    return EXIT_SUCCESS;
 }

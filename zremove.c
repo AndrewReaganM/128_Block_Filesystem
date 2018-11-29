@@ -1,5 +1,5 @@
 /**
-Print a file in the OU File System.
+Delete a file reference or file in the OU File System.
 
 CS3113
 
@@ -18,32 +18,21 @@ int main(int argc, char **argv) {
     OUFILE *fileDesc;
     int c;
     char inputBuffer[(BLOCK_SIZE*BLOCKS_PER_INODE) + 1];
-    int length = 0;
-    char mode[2] = "r";
 
     // Check arguments
     if (argc == 2) {
         // Open the virtual disk
         vdisk_disk_open(disk_name);
 
-        // Make or open the specified file
-        if((fileDesc = oufs_fopen(cwd, argv[1], &mode)) == NULL)
-        {
-            fprintf(stderr, "Unable to open file.\n");
-            return EXIT_FAILURE;
-        }
-        fprintf(stderr, "%i\n", getpid());
-        oufs_fread(fileDesc, inputBuffer, &length);
-        inputBuffer[length] = 0;
-
-        printf("%s", inputBuffer);
+        //Remove file entry
+        oufs_remove(cwd, argv[1]);
 
         // Clean up
         vdisk_disk_close();
 
     } else {
         // Wrong number of parameters
-        fprintf(stderr, "Usage: zmore <filename>\n");
+        fprintf(stderr, "Usage: zremove <filename>\n");
     }
 
 }

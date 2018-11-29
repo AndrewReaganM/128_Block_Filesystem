@@ -64,7 +64,7 @@ void oufs_fclose(OUFILE *fp);
 
 int oufs_fwrite(OUFILE *fp, unsigned char *buf, int len);
 
-int oufs_fread(OUFILE *fp, unsigned char *buf, int len);
+int oufs_fread(OUFILE *fp, unsigned char *buf, int *len);
 
 int oufs_remove(char *cwd, char *path);
 
