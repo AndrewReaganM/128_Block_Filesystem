@@ -51,9 +51,6 @@ BLOCK_REFERENCE oufs_allocate_new_block();
 // Helper functions to be provided
 int oufs_find_open_bit(unsigned char *value);
 
-// Methods Added
-int oufs_realpath(char * userPath, char *cwd); //Takes a given path and returns its absolute variant.
-
 char **oufs_path_parse(char *input, int *numberOfTokens);
 
 int cmpstringp(const void *p1, const void *p2);

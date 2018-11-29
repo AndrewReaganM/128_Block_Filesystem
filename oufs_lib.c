@@ -930,7 +930,13 @@ int oufs_remove(char *cwd, char *path)
     oufs_write_inode_by_reference(childINODE_REF, &childINODE);
     return EXIT_SUCCESS;
 }
-
+/**
+ * Links a currently existing file to a new location in the file system.
+ * @param cwd the current working directory determined in ENV.
+ * @param path_src the path to a file to link to
+ * @param path_dst the path to a file to be created as a link.
+ * @return system defined success value.
+ */
 int oufs_link(char *cwd, char *path_src, char *path_dst)
 {
     INODE_REFERENCE srcChildINODE_REF, srcParentINODE_REF, dstChildINODE_REF, dstParentINODE_REF;
@@ -1005,7 +1011,9 @@ int oufs_link(char *cwd, char *path_src, char *path_dst)
     oufs_write_inode_by_reference(srcChildINODE_REF, &srcChildINODE);
     return EXIT_SUCCESS;
 }
-
+/**
+ * Frees an allocated file pointer.
+ */
 void oufs_fclose(OUFILE *fp)
 {
     free(fp);
