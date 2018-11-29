@@ -37,6 +37,8 @@ int main(int argc, char **argv) {
         while((inputBuffer[i] = getchar()) != EOF)
         {
             i++;
+            if(i >= (BLOCK_SIZE*BLOCKS_PER_INODE))
+                break;
         }
 
         oufs_fwrite(fileDesc, &inputBuffer, i);
