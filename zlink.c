@@ -15,7 +15,6 @@ int main(int argc, char **argv) {
     char cwd[MAX_PATH_LENGTH];
     char disk_name[MAX_PATH_LENGTH];
     oufs_get_environment(cwd, disk_name);
-    OUFILE *fileDesc;
     int c;
     char inputBuffer[(BLOCK_SIZE*BLOCKS_PER_INODE) + 1];
 
@@ -28,7 +27,6 @@ int main(int argc, char **argv) {
         oufs_link(cwd, argv[1], argv[2]);
 
         // Clean up
-        oufs_fclose(fileDesc);
         vdisk_disk_close();
 
     } else {

@@ -40,10 +40,10 @@ int main(int argc, char **argv) {
                 break;
         }
 
-        oufs_fclose(fileDesc);
         oufs_fwrite(fileDesc, &inputBuffer, i);
 
         // Clean up
+        oufs_fclose(fileDesc);
         vdisk_disk_close();
 
     } else {
