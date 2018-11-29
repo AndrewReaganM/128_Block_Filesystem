@@ -95,7 +95,7 @@ int oufs_mkdir(char *cwd, char *path) {
     char local_name[FILE_NAME_SIZE];
 
     //Find where the directory should be located.
-    if(oufs_find_file(cwd, path, &parent, &child, &local_name) == EXIT_FAILURE)
+    if(oufs_find_file(cwd, path, &parent, &child, local_name) == EXIT_FAILURE)
     {
         fprintf(stderr, "Unable to traverse CWD or provided path.\n");
         return EXIT_FAILURE;
@@ -297,7 +297,7 @@ int oufs_list(char *cwd, char *path)
     char local_name[FILE_NAME_SIZE];
 
     //Find where the directory should be located.
-    if(oufs_find_file(cwd, path, &parent, &child, &local_name) == EXIT_FAILURE)
+    if(oufs_find_file(cwd, path, &parent, &child, local_name) == EXIT_FAILURE)
     {
         fprintf(stderr, "Unable to traverse CWD or provided path.\n");
         return EXIT_FAILURE;
@@ -425,7 +425,7 @@ int oufs_rmdir(char *cwd, char *path) {
     char local_name[FILE_NAME_SIZE];
 
     //Find where the directory should be located.
-    if(oufs_find_file(cwd, path, &parent, &child, &local_name) == EXIT_FAILURE)
+    if(oufs_find_file(cwd, path, &parent, &child, local_name) == EXIT_FAILURE)
     {
         fprintf(stderr, "Unable to traverse CWD or provided path.\n");
         return EXIT_FAILURE;
@@ -520,7 +520,7 @@ OUFILE *oufs_fopen(char *cwd, char *path, char *mode)
     char local_name[FILE_NAME_SIZE];
     INODE_REFERENCE parentINODE_REF, childINODE_REF;
     INODE childINODE, parentINODE;
-    oufs_find_file(cwd, path, &parentINODE_REF, &childINODE_REF, &local_name);
+    oufs_find_file(cwd, path, &parentINODE_REF, &childINODE_REF, local_name);
 
     OUFILE *fp = malloc(sizeof(OUFILE));
 
@@ -871,7 +871,7 @@ int oufs_remove(char *cwd, char *path)
     INODE_REFERENCE parentINODE_REF, childINODE_REF;
     INODE parentINODE, childINODE;
     BLOCK parentBLOCK;
-    oufs_find_file(cwd, path, &parentINODE_REF, &childINODE_REF, &local_name);
+    oufs_find_file(cwd, path, &parentINODE_REF, &childINODE_REF, local_name);
 
     //Check if child exists
     if(childINODE_REF == UNALLOCATED_INODE)
