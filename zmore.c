@@ -32,14 +32,14 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Unable to open file.\n");
             return EXIT_FAILURE;
         }
-        fprintf(stderr, "%i\n", getpid());
+        //fprintf(stderr, "%i\n", getpid());
         oufs_fread(fileDesc, inputBuffer, &length);
-        inputBuffer[length-1] = 0;
 
         printf("%s", inputBuffer);
 
         // Clean up
         vdisk_disk_close();
+        return EXIT_SUCCESS;
 
     } else {
         // Wrong number of parameters

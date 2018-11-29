@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
             i++;
         }
 
-        oufs_fwrite(fileDesc, &inputBuffer, i+1);
+        oufs_fwrite(fileDesc, &inputBuffer, i);
 
         // Clean up
         vdisk_disk_close();

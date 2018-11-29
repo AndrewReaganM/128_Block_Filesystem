@@ -716,8 +716,12 @@ int oufs_fwrite(OUFILE *fp, unsigned char *buf, int len)
             }
             inode.size = 0;
 
-            while((bufLocation < len-1) || (bufLocation < (BLOCK_SIZE*BLOCKS_PER_INODE))) //While there is still data to write.
+            while(bufLocation < len) //While there is still data to write.
             {
+                if(bufLocation >= (BLOCK_SIZE*BLOCKS_PER_INODE))
+                {
+                    break;
+                }
                 offsetInBlock = (*fp).offset % 256; //Calculate the current position in block.
                 currentBlock = ((*fp).offset - offsetInBlock) / 256; //Calculate the current block.
 
@@ -756,8 +760,12 @@ int oufs_fwrite(OUFILE *fp, unsigned char *buf, int len)
             return EXIT_SUCCESS;
         case 'a' :
             //Write the characters to the file.
-            while((bufLocation < len-1) || (bufLocation < (BLOCK_SIZE*BLOCKS_PER_INODE))) //While there is still data to write.
+            while(bufLocation < len) //While there is still data to write.
             {
+                if(bufLocation >= (BLOCK_SIZE*BLOCKS_PER_INODE))
+                {
+                    break;
+                }
                 offsetInBlock = (*fp).offset % 256; //Calculate the current position in block.
                 currentBlock = ((*fp).offset - offsetInBlock) / 256; //Calculate the current block.
 
@@ -842,6 +850,7 @@ int oufs_fread(OUFILE *fp, unsigned char *buf, int *len) {
         bufLocation++;
 
     }
+    buf[bufLocation] = 0;
     *len = bufLocation;
     return EXIT_SUCCESS;
 }
