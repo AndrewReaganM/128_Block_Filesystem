@@ -703,8 +703,6 @@ int oufs_fwrite(OUFILE *fp, unsigned char *buf, int len)
 
     switch((*fp).mode){
         case 'w' :
-            if((*fp).offset > 0)
-            {
                 for(int i=0; i< BLOCKS_PER_INODE; i++)
                 {
                     if(inode.data[i] == UNALLOCATED_BLOCK) //Break loop if the block reference is already unallocated.
@@ -713,7 +711,6 @@ int oufs_fwrite(OUFILE *fp, unsigned char *buf, int len)
                     RESET_BIT(masterBlock.master.block_allocated_flag, inode.data[i]); //Free the block
                     inode.data[i] = UNALLOCATED_BLOCK; //Set data to unallocated.
                 }
-            }
             inode.size = 0;
 
             while(bufLocation < len) //While there is still data to write.
@@ -924,6 +921,7 @@ int oufs_remove(char *cwd, char *path)
 
         vdisk_write_block(MASTER_BLOCK_REFERENCE, &masterBLOCK); //Write master block.
     }
+    oufs_write_inode_by_reference(childINODE_REF, &childINODE);
     return EXIT_SUCCESS;
 }
 

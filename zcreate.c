@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Unable to open file.\n");
             return EXIT_FAILURE;
         }
-        fprintf(stderr, "%i\n", getpid());
+        //fprintf(stderr, "%i\n", getpid());
         int i = 0;
         while((inputBuffer[i] = getchar()) != EOF)
         {
