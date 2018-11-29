@@ -833,7 +833,7 @@ int oufs_fread(OUFILE *fp, unsigned char *buf, int *len) {
 
     oufs_read_inode_by_reference((*fp).inode_reference, &fileINODE);
 
-    while (bufLocation < fileINODE.size-1) //While there is still data to write.
+    while (bufLocation < fileINODE.size) //While there is still data to write.
     {
         offsetInBlock = bufLocation % 256; //Calculate the current position in block.
         currentBlock = (bufLocation - offsetInBlock) / 256; //Calculate the current block.
