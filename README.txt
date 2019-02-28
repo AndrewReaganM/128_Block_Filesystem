@@ -1,9 +1,9 @@
 Andrew Massey
-Project 3 - CS3113
+Project 4 - CS3113
 andrewreaganm@ou.edu
 
 Program Outline:
-Project 3 is a virtual file system that has only directories (as of this release). The file system features 128 blocks for directories and files, which will be added in a future release.
+Project 4 is a virtual file system that has directories and files. The file system features 128 blocks of storage.
 
 How To Use:
 Download the files and run "make" in the directory to make the executables. After the executables are created, run "./zformat" to create and prepare the disk. The disk can now be manipulated through the available functions listed below.
@@ -35,6 +35,10 @@ Other Information:
 
 
 Sources Cited
+Underlying Project:
+    Project 3, Andrew Massey: https://github.com/AndrewReaganM/3
+Project Assignment: 
+    https://oudalab.github.io/cs3113fa18/projects/project4
 How to use qsort:
     https://linux.die.net/man/3/qsort
     https://bewuethr.github.io/sorting-strings-in-c-with-qsort/
